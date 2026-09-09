@@ -22,6 +22,34 @@ description: Build per-image semantic masks (sky, water, people, vehicles, veget
 3. **출력 위치와 이름 규약** — 원본과 같은 폴더에 `<이름>_mask.png` 가 기본.
 4. **정밀도와 시간 중 무엇이 우선인가** — 정련 단계(패스2)가 전체 시간의 8할이다.
    빠른 초안이 필요하면 패스1만으로도 쓸 수 있다.
+5. **환경이 없으면 설치를 대신 해도 되는가** — 아래 규칙을 지켜 물어본다.
+
+## 환경 설치 — 허락 없이 설치하지 마라
+
+사용자 기계에 수 GB를 쓰는 일이다. **용량·경로를 먼저 보여주고 동의를 받은 뒤**에만 실행한다.
+두 스크립트 모두 기본이 "계획만 출력"이고, 명시 플래그가 있어야 실제로 설치한다.
+
+| 상황 | 명령 |
+|---|---|
+| 파이썬이 아예 없음(맨몸 윈도우) | `powershell -File $S/bootstrap.ps1` |
+| 파이썬은 있고 패키지가 빠짐 | `$PY $S/check_env.py --install` |
+
+절차는 셋 다 같다.
+
+1. **진단·계획을 먼저 낸다.** 플래그 없이 실행하면 아무것도 바꾸지 않고
+   무엇을 얼마나 받는지, 어디에 까는지, 드라이브 여유가 얼마인지만 출력한다.
+2. **그 출력을 사용자에게 그대로 보여주고 동의를 구한다.** 요약하지 말고 용량과 경로를 보여라.
+3. 동의를 받으면 `-Yes` (bootstrap) 또는 `--install --yes` (check_env) 로 실행한다.
+
+`bootstrap.ps1` 이 하는 일 — 파이썬 없이 시작할 수 있다:
+
+- winget · nvidia-smi 로 GPU·드라이버·VRAM 확인 (nvidia-smi 는 드라이버와 함께 깔린다)
+- 드라이버 버전으로 CUDA 휠을 정한다(528.33 이상 → cu126, 아니면 cpu)
+- Python 3.12 설치(winget) → 가상환경 생성 → torch → 나머지 → 검사
+- `-FetchModels` 를 주면 OneFormer·CascadePSP(합 1.9GB)까지 미리 받는다
+
+**직접 pip 를 치지 마라.** 특히 `segmentation-refinement` 는 `--no-deps` 가 필수다 —
+의존성을 풀면 opencv/torch 를 제 버전으로 갈아엎는다. 두 스크립트가 이미 지키고 있다.
 
 ## 워크플로
 
@@ -30,7 +58,7 @@ PY=python                    # ← CUDA 가 있는 인터프리터로 바꾼다
 S=~/.claude/skills/semantic-mask/scripts
 IMG=<이미지폴더>
 
-$PY $S/check_env.py                                    # 0. 환경 검사 (설치는 제안만)
+$PY $S/check_env.py                                    # 0. 환경 검사 (기본은 제안만)
 $PY $S/targets.py                                      #    마스킹 대상 목록
 $PY $S/analyze.py  $IMG --target sky                   # 1. ERP/일반 판별 + 설정·비용
 $PY $S/segment.py  $IMG coarse/  --target sky --shard k/4        # 2. 패스1

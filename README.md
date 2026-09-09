@@ -93,15 +93,17 @@ GPU와 드라이버에 맞는 빌드를 [pytorch.org](https://pytorch.org/get-st
 pip install torch torchvision --index-url https://download.pytorch.org/whl/cu126
 ```
 
-### 2. 나머지 — pip 두 줄
+### 2. 나머지 — pip 세 줄
 
 ```bash
 pip install transformers opencv-python-headless pillow numpy
 pip install --no-deps segmentation-refinement
+pip install requests
 ```
 
 `segmentation-refinement` 는 반드시 `--no-deps` 로 넣어라.
 의존성을 풀면 opencv/torch 를 제 버전으로 갈아엎는다.
+대신 `requests` 는 따로 넣어야 한다 — `--no-deps` 로 빠지는데 모델 다운로드에 쓴다.
 
 검증된 버전:
 
@@ -113,6 +115,7 @@ pip install --no-deps segmentation-refinement
 | pillow | 12.3.0 | 대용량 이미지 I/O |
 | numpy | 2.5.2 | |
 | segmentation-refinement | 0.6 | CascadePSP |
+| requests | — | CascadePSP 가중치 다운로드 |
 
 **가상환경 약 5.1GB** — 그중 torch 가 3.9GB다.
 
@@ -135,8 +138,41 @@ pip install --no-deps segmentation-refinement
 python scripts/check_env.py
 ```
 
-없는 것과 넣는 명령을 알려준다. **설치를 직접 하지는 않는다** — 제안만 한다.
-CUDA 가용 여부, 카드 이름, VRAM, 현재 여유를 함께 찍는다.
+없는 것과 넣는 명령을 알려준다. CUDA 가용 여부, 카드 이름, VRAM, 현재 여유를 함께 찍는다.
+
+### 맨몸 윈도우에서 한 번에
+
+파이썬조차 없는 기계라면 위 1~4를 대신 해주는 스크립트가 있다.
+
+```powershell
+.\scripts\bootstrap.ps1                    # 진단 + 설치 계획만. 아무것도 바꾸지 않는다
+.\scripts\bootstrap.ps1 -Yes -FetchModels  # 동의 후 실제 설치
+```
+
+플래그 없이 실행하면 **무엇을 얼마나 받고 어디에 까는지**만 출력하고 끝난다.
+`-Yes` 를 붙여야 실행한다.
+
+```
+[환경 진단]
+  winget   v1.28.240
+  GPU      NVIDIA GeForce RTX 3080 Ti   VRAM 12GB   드라이버 610.47   CUDA 13.3
+  python   없음 또는 3.10~3.15 밖
+  가상환경 ...\.venv-seg   (새로 만듦)
+
+[설치 계획]
+  Python 3.12 (winget)     다운   25.0MB   디스크  120.0MB
+  torch + torchvision      다운    2.5GB   디스크    3.9GB
+  transformers 외 4종      다운  150.0MB   디스크    1.2GB
+  OneFormer Swin-L         다운    1.6GB   디스크    1.6GB
+  CascadePSP               다운  271.0MB   디스크  271.0MB
+  합계                     다운    4.6GB   디스크    7.1GB
+```
+
+`nvidia-smi` 는 그래픽 드라이버와 함께 깔리므로 파이썬 없이도 읽힌다.
+드라이버 버전을 보고 CUDA 휠(cu126 / cpu)을 스스로 고른다.
+
+파이썬은 있고 패키지만 빠졌다면 `check_env.py --install` 이 같은 방식으로 동작한다
+(계획만 출력 → `--install --yes` 로 실행).
 
 ---
 
