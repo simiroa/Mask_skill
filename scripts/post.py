@@ -119,8 +119,11 @@ def main():
     files = sorted(glob.glob(os.path.join(glob.escape(a.fine), "**", "*" + a.suffix + ".png"),
                              recursive=True))[k::n]
     os.makedirs(a.dst, exist_ok=True)
-    print(f"{len(files):,}장  대상 {a.target}  과확장 {a.max_grow}px  "
+    C.banner("후처리", 성긴=a.coarse, 입력=a.fine, 출력=a.dst)
+    print(f"  {len(files):,}장  대상 {a.target}  과확장 {a.max_grow}px  "
           f"구멍 {hole:,}px  섬 {isl:,}px  마진 {a.margin:+d}px", flush=True)
+    C.plan_report(files, a.dst, "후처리")
+    pr = C.Progress(len(files), every=100)
     t0, done, delta, broken, no_coarse = time.time(), 0, [], 0, 0
     for f in files:
         rel = os.path.relpath(f, a.fine)
@@ -141,12 +144,10 @@ def main():
         C.write_mask(out, m)
         delta.append(m.mean() - before)
         done += 1
-        if done % 100 == 0:
-            e = time.time() - t0
-            print(f"  {done}/{len(files)}  {e/done:.2f}s/장", flush=True)
+        pr.tick()
     d = np.array(delta) * 100 if delta else np.zeros(1)
-    print(f"완료 {done}장  {(time.time()-t0)/60:.1f}분   "
-          f"대상 면적 변화 평균 {d.mean():+.3f}%p  최대감소 {d.min():+.3f}%p", flush=True)
+    pr.n = done
+    pr.finish(a.dst, f"· 면적 변화 평균 {d.mean():+.3f}%p 최대감소 {d.min():+.3f}%p")
     if done == 0:
         print("  ※ 0장 처리됐다 — 출력 폴더에 이미 파일이 있거나(재개) 입력이 비었다.", flush=True)
     if no_coarse:

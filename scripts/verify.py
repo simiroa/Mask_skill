@@ -38,6 +38,7 @@ def main():
     tgt = T.resolve(a.target)
     checks = tgt["checks"]
     island_thr = a.island_thr if a.island_thr is not None else max(2000, tgt["island_thr"] // 50)
+    C.banner("검증", 이미지=a.src, 마스크=a.masks)
     files = C.list_images(a.src, a.suffix)
     bad, area, top, seam, isl, hol, mism = [], [], [], [], 0, 0, 0
 

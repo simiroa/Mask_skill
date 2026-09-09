@@ -49,9 +49,11 @@ def main():
     if a.limit:
         files = files[:a.limit]          # ★샤딩보다 먼저 — 뒤에 두면 전체가 limit*N 장이 된다
     files = files[k::n]
-    print(f"{len(files):,}장 (샤드 {k}/{n})  대상 {a.target}{tgt['classes']}  "
+    C.banner("패스1 분할", 입력=a.src, 출력=a.dst)
+    print(f"  {len(files):,}장 (샤드 {k}/{n})  대상 {a.target}{tgt['classes']}  "
           f"타일 {cols}x{rows}  wrap={'auto' if a.wrap is None else a.wrap}  "
           f"모델 {a.model}", flush=True)
+    C.plan_report(files, a.dst, "패스1")
 
     if a.fill_empty:
         done = 0
@@ -62,13 +64,16 @@ def main():
             W, H = C.image_size(f)             # 화소를 디코드하지 않는다(EXIF 적용)
             C.write_mask(out, np.zeros((H, W), bool))
             done += 1
-        print(f"빈 마스크 {done}장 생성", flush=True)
+        n_, b_ = C.dir_stats(a.dst)
+        print(f"빈 마스크 {done}장 생성 -> {os.path.abspath(a.dst)}  "
+              f"{n_:,}개 {C.fmt_bytes(b_)}", flush=True)
         return
 
     os.makedirs(a.dst, exist_ok=True)
     model = C.SkyModel(a.model)
     stats = open(os.path.join(a.dst, f"stats.{k}.jsonl"), "a", encoding="utf-8")
-    t0, done = time.time(), 0
+    pr = C.Progress(len(files), every=25)
+    done = 0
     for f in files:
         out = C.mask_path(a.dst, a.src, f, a.suffix)
         if os.path.exists(out):
@@ -85,12 +90,9 @@ def main():
                                 "size": list(arr.shape[:2][::-1])}) + "\n")
         stats.flush()
         done += 1
-        if done % 25 == 0:
-            e = time.time() - t0
-            print(f"  {done}/{len(files)}  {e/done:.1f}s/장  남은 {(len(files)-done)*e/done/60:.0f}분",
-                  flush=True)
+        pr.tick()
     stats.close()
-    print(f"완료 {done}장  {(time.time()-t0)/60:.1f}분", flush=True)
+    pr.finish(a.dst)
 
 
 if __name__ == "__main__":

@@ -57,8 +57,11 @@ def main():
     k, n = map(int, a.shard.split("/"))
     files = C.list_images(a.src, a.suffix)[k::n]
     os.makedirs(a.dst, exist_ok=True)
+    C.banner("이음새 복구", 입력=a.src, 성긴=a.coarse, 정련=a.fine, 출력=a.dst)
+    C.plan_report(files, a.dst, "이음새")
     ref = refine.Refiner(device="cuda")
-    t0, done = time.time(), 0
+    pr = C.Progress(len(files), every=25)
+    done = 0
     for f in files:
         out = C.mask_path(a.dst, a.src, f, a.suffix)
         if os.path.exists(out):
@@ -82,11 +85,8 @@ def main():
         fin[:, p0:p1] = (soft > 127)[:, p0 - x0:p1 - x0]
         C.write_mask(out, np.roll(fin, -sh, axis=1))
         done += 1
-        if done % 25 == 0:
-            e = time.time() - t0
-            print(f"  {done}/{len(files)}  {e/done:.1f}s/장  남은 {(len(files)-done)*e/done/60:.0f}분",
-                  flush=True)
-    print(f"완료 {done}장  {(time.time()-t0)/60:.1f}분", flush=True)
+        pr.tick()
+    pr.finish(a.dst)
 
 
 if __name__ == "__main__":

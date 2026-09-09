@@ -47,6 +47,7 @@ def main():
         sets.append((label, path))
     cw, ch = (int(x) for x in a.box.lower().split("x"))
     os.makedirs(a.out, exist_ok=True)
+    C.banner("비교 렌더", 이미지=a.src, **{lb: pth for lb, pth in sets}, 출력=a.out)
 
     files = C.list_images(a.src, a.suffix)
     if a.frames:
@@ -97,7 +98,9 @@ def main():
                 d += f"  {lb} {m.mean()*100:.2f}%"
         print(f"{stem}  크롭({x0},{y0}){d}", flush=True)
         made += 1
-    print(f"\n{made}장 저장 -> {a.out}")
+    print(f"\n{made}장 저장 -> {os.path.abspath(a.out)}")
+    n_, b_ = C.dir_stats(a.out)
+    print(f"  {n_:,}개  {C.fmt_bytes(b_)}")
     if made:
         print("판정은 수치가 아니라 이 그림으로 하라. 수치는 보조다.")
 

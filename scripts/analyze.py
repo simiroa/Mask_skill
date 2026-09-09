@@ -48,6 +48,7 @@ def main():
     mode, why = classify(sizes)
     mp = sum(w * h for w, h in sizes) / len(sizes) / 1e6
 
+    C.banner("소스 분석", 이미지=a.src)
     print(f"이미지 {len(files):,}장   표본 {len(sizes)}장")
     print(f"해상도: " + ", ".join(f"{w}x{h} x{n}" for (w, h), n in cnt.most_common(4)))
     if len(cnt) > 1:
@@ -76,7 +77,17 @@ def main():
     est = mp / 30.2                      # 7776x3888 = 30.2MP 를 1.0 으로 본 상대비용
     print(f"\n비용 추정 (7776x3888 실측 기준 상대)")
     print(f"  평균 {mp:.1f}MP  ->  패스1 약 {3.5*est:.1f}s/장, 정련 약 {12.5*est:.1f}s/장")
-    print(f"  {len(files):,}장 전량: 패스1 {3.5*est*len(files)/60:.0f}분, 정련 {12.5*est*len(files)/3600:.1f}시간")
+    print(f"  {len(files):,}장 전량: 패스1 {C.fmt_dur(3.5*est*len(files))}, "
+          f"정련 {C.fmt_dur(12.5*est*len(files))}, "
+          f"이음새 {C.fmt_dur(4.4*est*len(files))}(ERP만), 후처리 {C.fmt_dur(1.0*est*len(files))}")
+    per = C.mask_bytes_per_frame(sizes)
+    stage = per * len(files)
+    n_stage = 4 if wrap else 3
+    print("")
+    print(f"용량 추정   마스크 1장 약 {C.fmt_bytes(per)}  ->  단계당 {C.fmt_bytes(stage)}")
+    print(f"  중간 산출물 {n_stage}단계 유지 시 총 {C.fmt_bytes(stage * n_stage)}  "
+          f"(출력 예정 드라이브 여유 {C.fmt_bytes(C.free_space(os.path.abspath(a.src)))})")
+    print("  ※ 중간 산출물을 지우지 마라 — 설정을 바꿀 때 모델 재실행 없이 다시 만든다.")
     print("  ※ 정련은 경계가 긴 프레임에서 5배까지 튄다(실측 12s~64s). 평균만 믿지 마라.")
     print("  ※ 대상이 없는 프레임은 정련을 건너뛰어라 — 다듬을 경계가 없다.")
 

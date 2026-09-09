@@ -39,7 +39,10 @@ def main():
     k, n = map(int, a.shard.split("/"))
     files = C.list_images(a.src, a.suffix)[k::n]
     os.makedirs(a.dst, exist_ok=True)
+    C.banner("패스2 경계정련", 입력=a.src, 성긴=a.coarse, 출력=a.dst)
+    C.plan_report(files, a.dst, "정련")
     ref = refine.Refiner(device="cuda")
+    pr = C.Progress(len(files), every=10)
     t0, done, skipped, broken = time.time(), 0, 0, 0
     for f in files:
         out = C.mask_path(a.dst, a.src, f, a.suffix)
@@ -58,11 +61,9 @@ def main():
         soft = ref.refine(img, (tgt * 255).astype(np.uint8), fast=False, L=a.L)
         C.write_mask(out, soft > 127)
         done += 1
-        if done % 10 == 0:
-            e = time.time() - t0
-            print(f"  {done}장  {e/done:.1f}s/장  남은 {(len(files)-done-skipped)*e/done/60:.0f}분",
-                  flush=True)
-    print(f"완료 정련 {done}장 · 건너뜀 {skipped}장 · 손상 {broken}장  {(time.time()-t0)/60:.1f}분", flush=True)
+        pr.tick()
+    pr.n = done
+    pr.finish(a.dst, f"· 건너뜀 {skipped}장 · 손상 {broken}장")
 
 
 if __name__ == "__main__":

@@ -51,6 +51,19 @@ ERP 가 아니면 4단계를 건너뛰고 `post.py coarse/ fine/ final/` 로 이
   `python -c "import json,sys;[print(json.loads(l)['f']) for l in open(sys.argv[1],encoding='utf-8') if json.loads(l)['area']>0]" coarse/stats.0.jsonl > todo.txt`
   나머지는 `segment.py … --fill-empty` 로 255 마스크를 직접 쓴다.
 
+## 보고 형식
+
+모든 스크립트는 시작할 때 **절대경로·현재 용량**, 진행 중에 **남은 시간·완료예정시각**,
+끝날 때 **소요 시간·출력 절대경로·산출 용량**을 낸다(`common.banner` / `Progress` / `plan_report`).
+
+사용자에게 보고할 때도 같은 세 가지를 반드시 포함한다:
+
+- **절대경로** — 입력·출력 폴더를 전부 절대경로로. 상대경로는 다음 세션에서 무의미하다.
+- **용량** — 단계별 산출 용량과 남은 디스크 여유.
+- **예상 시간** — 시작 전 추정치(`analyze.py`)와 진행 중 남은 시간, 완료 후 실측치.
+
+`analyze.py` 가 착수 전에 셋을 한 번에 낸다 — 긴 작업은 반드시 먼저 돌려서 보고하라.
+
 ## 반드시 지킬 것
 
 - **수치만으로 판정하지 마라.** 주 지표(3px 이내)는 어떤 에지인지 모른다.

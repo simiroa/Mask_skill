@@ -97,6 +97,130 @@ def write_mask(path, sky):
     os.replace(tmp, path)
 
 
+# ---------------------------------------------------------------- 보고 형식
+# 모든 스크립트가 같은 형식으로 절대경로·용량·시간을 낸다.
+
+def fmt_bytes(n):
+    for u in ("B", "KB", "MB", "GB", "TB"):
+        if n < 1024 or u == "TB":
+            return f"{n:.0f}{u}" if u == "B" else f"{n:.1f}{u}"
+        n /= 1024
+
+
+def fmt_dur(sec):
+    if sec < 60:
+        return f"{sec:.0f}초"
+    if sec < 3600:
+        return f"{sec/60:.1f}분"
+    return f"{sec/3600:.1f}시간"
+
+
+def dir_stats(path, pattern="**/*"):
+    """(파일 수, 총 바이트). 없으면 (0, 0)."""
+    if not path or not os.path.isdir(path):
+        return 0, 0
+    n = t = 0
+    for f in glob.glob(os.path.join(glob.escape(path), pattern), recursive=True):
+        if os.path.isfile(f):
+            n += 1
+            t += os.path.getsize(f)
+    return n, t
+
+
+def free_space(path):
+    import shutil
+    probe = path
+    while probe and not os.path.isdir(probe):
+        parent = os.path.dirname(probe)
+        if parent == probe:
+            break
+        probe = parent
+    try:
+        return shutil.disk_usage(probe or ".").free
+    except OSError:
+        return -1
+
+
+def banner(title, **paths):
+    """절대경로를 항상 보여준다 — 어디에 쓰는지 헷갈리는 게 가장 흔한 사고다."""
+    print(f"[{title}]")
+    for k, v in paths.items():
+        if not v:
+            continue
+        ap = os.path.abspath(v)
+        n, b = dir_stats(ap)
+        extra = f"   ({n:,}개, {fmt_bytes(b)})" if n else ("   (없음/빈 폴더)" if os.path.isdir(ap) else "   (새로 만듦)")
+        pad = " " * max(1, 9 - sum(2 if ord(c) > 0x2000 else 1 for c in k))
+        print(f"  {k}{pad}{ap}{extra}")
+
+
+# 단계별 프레임당 비용 — 7776x3888(30.2MP) 12GB 카드 실측 기준. 화소 수에 비례한다.
+STAGE_SEC = {"패스1": 3.5, "정련": 12.5, "이음새": 4.4, "후처리": 1.0, "비교": 2.0}
+MASK_BYTES_PER_MP = 2000          # 실측 1.5KB/MP(하늘). 대상이 잘게 흩어지면 커진다.
+
+
+def mask_bytes_per_frame(sizes):
+    return int(sum(w * h for w, h in sizes) / max(1, len(sizes)) / 1e6 * MASK_BYTES_PER_MP)
+
+
+def plan_report(files, dst, stage):
+    """시작 전에 예상 소요·용량·여유를 낸다. 다 돌리고 나서 디스크가 찼다는 걸 알면 늦다."""
+    if not files:
+        return
+    sample = files[:: max(1, len(files) // 8)][:8]
+    sizes = []
+    for f in sample:
+        try:
+            sizes.append(image_size(f))
+        except Exception:
+            pass
+    if not sizes:
+        return
+    mp = sum(w * h for w, h in sizes) / len(sizes) / 1e6
+    sec = STAGE_SEC.get(stage, 3.0) * mp / 30.2 * len(files)
+    need = mask_bytes_per_frame(sizes) * len(files)
+    free = free_space(os.path.abspath(dst))
+    line = f"  예상   소요 {fmt_dur(sec)}  용량 {fmt_bytes(need)}"
+    if free >= 0:
+        line += f"  (여유 {fmt_bytes(free)})"
+    print(line, flush=True)
+    if 0 <= free < need * 1.2:
+        print("  ※ 여유 공간이 빠듯하다 — 중간에 멈춘다.", flush=True)
+
+
+class Progress:
+    """경과·속도·남은시간·완료예정시각을 한 줄로."""
+
+    def __init__(self, total, every=25):
+        import time as _t
+        self.total, self.every, self.t0, self.n = total, every, _t.time(), 0
+
+    def tick(self, k=1):
+        import time as _t
+        self.n += k
+        if self.n % self.every:
+            return
+        el = _t.time() - self.t0
+        rate = el / max(1, self.n)
+        left = (self.total - self.n) * rate
+        eta = _t.strftime("%H:%M", _t.localtime(_t.time() + left))
+        print(f"  {self.n:,}/{self.total:,}  {rate:.1f}s/장  경과 {fmt_dur(el)}  "
+              f"남은 {fmt_dur(left)}  완료예정 {eta}", flush=True)
+
+    def finish(self, dst=None, note=""):
+        import time as _t
+        el = _t.time() - self.t0
+        rate = el / max(1, self.n)
+        line = f"완료 {self.n:,}장  소요 {fmt_dur(el)}  ({rate:.1f}s/장)"
+        if note:
+            line += f"  {note}"
+        print(line, flush=True)
+        if dst:
+            ap = os.path.abspath(dst)
+            n, b = dir_stats(ap)
+            print(f"  출력 {ap}   {n:,}개  {fmt_bytes(b)}", flush=True)
+
+
 # ---------------------------------------------------------------- 타일
 
 def tile_boxes(W, H, cols, rows, ov=0.25, wrap=True):
@@ -339,6 +463,13 @@ def demo():
     assert o[50, 0].tolist() == [0, 0, 0], "유지영역이 칠해졌다"
     sheet = contact_sheet(img, [("a", None), ("b", s)], (0, 0, 60, 60))
     assert sheet.shape[1] == 60 * 2 + 8, "콘택트시트 폭 계약 위반"
+    assert fmt_bytes(0) == "0B" and fmt_bytes(1536) == "1.5KB"
+    assert fmt_bytes(3 * 1024 ** 3) == "3.0GB"
+    assert fmt_dur(30) == "30초" and fmt_dur(90) == "1.5분" and fmt_dur(7200) == "2.0시간"
+    assert mask_bytes_per_frame([(7776, 3888)]) == 60466
+    assert free_space(os.path.dirname(os.path.abspath(__file__))) > 0
+    assert dir_stats(os.path.join(os.path.abspath(__file__), "없는폴더")) == (0, 0)
+
     print("common demo OK")
 
 
